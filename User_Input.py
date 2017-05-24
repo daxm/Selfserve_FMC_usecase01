@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 
 import fmcapi
 import time
@@ -80,5 +81,9 @@ with fmcapi.FMC(serverIP, username=username, password=password) as fmc1:
     # Create Port and Host IP first.
     fmc1.createhostobjects(host_ip)
     fmc1.createprotocolportobjects(protocol_port)
+    # Occasionally the FMC is still "sync'ing" the newly added items and this can cause the use of them in
+    #  the createacprule() command to fail.  Let's wait 1 second before continuing.
+    time.sleep(1)
+
     # Create ACP Rule
     fmc1.createacprules(acp_rule)
