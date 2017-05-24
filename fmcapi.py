@@ -5,6 +5,7 @@ import requests
 import sys
 import time
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from os import *
 
 # Disable annoying HTTP warnings
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -42,6 +43,23 @@ class FMC(object):
         self.base_url = None
 
     def __enter__(self):
+        """
+        # Check for a lock file.  If doesn't exist create it, else if it is over 2xdeltatime, fail.
+        if lockfile and lockfile modified < 20 minutes:
+            exit(1)
+        elif lockfile:
+            delete lockfile
+        create lockfile
+        self.connect()        
+
+        Or, better yet, do something with semaphore logic to check a memory location
+        http://effbot.org/zone/thread-synchronization.htm
+        semaphore = threading.BoundedSemaphore()
+        semaphore.acquire()
+        Then in the __exit__:
+          semaphore.release()
+        Alas, the Threading package isn't available for python3.5.  :-(
+        """
         self.connect()
         return self
         

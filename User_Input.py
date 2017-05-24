@@ -3,7 +3,6 @@ import fmcapi
 import time
 import random
 
-
 #  Created or Provided by User
 dev_port = random.randint(1, 65535)
 dev_host_ip = '{}.{}.{}.{}'.format(random.randint(1, 223),
@@ -27,6 +26,7 @@ src_zone_name = 'OUT'
 dev_maxlife_seconds = 600
 now_timestamp = int(time.time())
 name = 'Dev-{}-{}'.format(dev_name, now_timestamp)
+# name = f'Dev-{dev_name}-{now_timestamp}'  # If/when I get python3.6
 
 protocol_port = [
     {
