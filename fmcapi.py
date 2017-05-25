@@ -35,7 +35,6 @@ This will result in a lot of logging but hopefully the output will be educationa
 it is running.
  """)
 
-
 logging.log(DOC, """The 'requests' package is very chatty on the INFO logging level.
 Change its logging threshold sent to logger to something greater than INFO (i.e. not INFO or DEBUG) will cause it to
 not log its INFO and DEBUG messages to the default logger.  This reduces the size of our log files.
