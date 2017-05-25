@@ -8,7 +8,7 @@ import random
 autodeploy = True
 dev_port = random.randint(1, 65535)
 dev_host_ip = '{}.{}.{}.{}'.format(random.randint(1, 223),
-                                   random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                                   random.randint(0, 255), random.randint(0, 255), random.randint(1, 254))
 dev_names = ['John', 'Paul', 'George', 'Ringo']
 dev_name = random.choice(dev_names)
 

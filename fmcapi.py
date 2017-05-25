@@ -74,6 +74,7 @@ Typically, you configure your instance variables here.
         self.token = ''
         self.uuid = ''
         self.base_url = ''
+        self.__authorship__
 
     def __enter__(self):
         logging.log(DOC, """In the __enter__() (pronounced "dunder enter") method.
@@ -104,6 +105,17 @@ changes.
                          "Use the Deploy button in FMC to push changes to FTDs.\n\n")
 
 # FMC Connection Maintenance
+
+    @property
+    def __authorship__(self):
+        logging.log(DOC,"""In the __authorship__() method.
+***********************************************************************************************************************
+This python module was created by Dax Mickelson <dmickels@cisco.com> along with LOTs of help from 
+Ryan Malloy <rymalloy@cisco.com> and Neil Patel <neipatel@cisco.com>.
+Feel free to send me comments/suggestions/improvements.  Either by email or more importantly via a Pull request
+from the github repository: https://github.com/daxm/<blah>.
+***********************************************************************************************************************
+""")
 
     # FMC Connection and Token Maintenance
 
@@ -242,7 +254,7 @@ through that list and send a request to the FMC to push changes to that device.
         if not devices:
             logging.info("No devices need deployed.\n\n")
             return
-        nowtime = int(1000 * datetime.datetime.now().timestamp())
+        nowtime = int(1000000 * datetime.datetime.now().timestamp())
         json_data = {
             'type': 'DeploymentRequest',
             'forceDeploy': True,
