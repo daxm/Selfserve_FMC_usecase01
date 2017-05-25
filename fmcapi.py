@@ -26,7 +26,7 @@ logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging_dateformat = '%Y/%m/%d-%H:%M:%S'
 logging_level = logging.INFO  # Options are DEBUG, DOC, INFO, WARNING, ERROR, CRITICAL
 # logging_level = DOC
-logging_filename = 'fmcapi.log'
+logging_filename = 'output.log'
 logging.basicConfig(format=logging_format, datefmt=logging_dateformat, filename=logging_filename, level=logging_level)
 logging.log(DOC, """Note: Documentation logging is enabled.
 This will result in a lot of logging but hopefully the output will be educational on what is going on in the code as
@@ -96,7 +96,8 @@ changes.
         if self.autodeploy:
             self.deploychanges()
         else:
-            logging.warning("Auto deploy changes set to False.  Use the Deploy button in FMC to push changes to FTDs.")
+            logging.info("Auto deploy changes set to False.  "
+                            "Use the Deploy button in FMC to push changes to FTDs.\n\n")
 
 # FMC Connection Maintenance
 
@@ -472,7 +473,8 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                     if policy['name'] == rule['ipsPolicy']:
                         ips_policy_id = policy['id']
                 if ips_policy_id is None:
-                    logging.warning("\tIPS Policy {} is not found.  Skipping IPS Policy assignment.".format(policy['name']))
+                    logging.warning("\tIntrusion Policy {} is not found.  Skipping ipsPolicy "
+                                    "assignment.\n\t\tResponse:{}".format(policy['name'], response))
                 else:
                     json_data['ipsPolicy'] = {
                         'name': rule['ipsPolicy'],
@@ -486,7 +488,8 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                     url_search = "/object/securityzones" + "?name=" + zone['name']
                     response = self.getdata(url_search)
                     if response.get('items', '') is '':
-                        logging.warning("\tSecurity Zone {} is not found.  Skipping source zone assignment.".format(zone['name']))
+                        logging.warning("\tSecurity Zone {} is not found.  Skipping destination zone "
+                                        "assignment.\n\t\tResponse:{}".format(zone['name'], response))
                     else:
                         tmp = {
                             'name': zone['name'],
@@ -505,7 +508,8 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                     url_search = "/object/securityzones" + "?name=" + zone['name']
                     response = self.getdata(url_search)
                     if response.get('items', '') is '':
-                        logging.warning("\tSecurity Zone {} is not found.  Skipping destination zone assignment.".format(zone['name']))
+                        logging.warning("\tSecurity Zone {} is not found.  Skipping destination zone "
+                                        "assignment.\n\t\tResponse:{}".format(zone['name'], response))
                     else:
                         tmp = {
                             'name': zone['name'],
@@ -519,13 +523,12 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                     }
             if rule.get('sourceNetworks', '') is not '':
                 # Currently you cannot query Network Objects by name.  I'll have to grab them all and filter from there.
-                url_search = "/object/hosts"
+                url_search = "/object/networkaddresses"
                 # Grab a copy of the current Network Objects on the server and we will cycle through these for each
                 # sourceNetwork.
                 response_network_obj = self.getdata(url_search)
                 network_obj_ids = []
                 for network in rule['sourceNetworks']:
-                    testvar = False
                     for obj in response_network_obj['items']:
                         if network['name'] == obj['name']:
                             tmp = {
@@ -534,24 +537,21 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                                 'id': obj['id']
                             }
                             network_obj_ids.append(tmp)
-                            testvar = True
-                    if testvar is False:
-                        logging.warning("\tNetwork {} is not found.  Skipping source network assignment.".format(network['name']))
                 if len(network_obj_ids) < 1:
-                    logging.info("\tNo sourceNetworks.  Skipping this section.")
+                    logging.warning("\tNetwork {} is not found.  Skipping source network "
+                                    "assignment.\n\t\tResponse:{}".format(rule['name'], response_network_obj))
                 else:
                     json_data['sourceNetworks'] = {
                         'objects': network_obj_ids
                     }
             if rule.get('destinationNetworks', '') is not '':
                 # Currently you cannot query Network Objects by name.  I'll have to grab them all and filter from there.
-                url_search = "/object/hosts"
+                url_search = "/object/networkaddresses"
                 # Grab a copy of the current Network Objects on the server and we will cycle through these for each
                 # sourceNetwork.
                 response_network_obj = self.getdata(url_search)
                 network_obj_ids = []
                 for network in rule['destinationNetworks']:
-                    testvar = False
                     for obj in response_network_obj['items']:
                         if network['name'] == obj['name']:
                             tmp = {
@@ -560,11 +560,9 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                                 'id': obj['id']
                             }
                             network_obj_ids.append(tmp)
-                            testvar = True
-                    if testvar is False:
-                        logging.warning("\tNetwork {} is not found.  Skipping destination network assignment.".format(network['name']))
                 if len(network_obj_ids) < 1:
-                    logging.info("\tNo destinationNetworks.  Skipping this section.")
+                    logging.warning("\tNetwork {} is not found.  Skipping destination network "
+                                    "assignment.\n\t\tResponse:{}".format(rule['name'], response_network_obj))
                 else:
                     json_data['destinationNetworks'] = {
                         'objects': network_obj_ids
@@ -575,7 +573,6 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                 response_port_obj = self.getdata(url_search)
                 port_obj_ids = []
                 for port in rule['sourcePorts']:
-                    testvar = False
                     for obj in response_port_obj['items']:
                         if port['name'] == obj['name']:
                             tmp = {
@@ -584,11 +581,9 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                                 'id': obj['id'],
                             }
                             port_obj_ids.append(tmp)
-                            testvar = True
-                    if testvar is False:
-                        logging.info("\tPort {} is not found.  Skipping source port assignment.".format(port['name']))
                 if len(port_obj_ids) < 1:
-                    logging.info("\tNo sourcePorts.  Skipping this section.")
+                    logging.warning("\tPort {} is not found.  Skipping source port "
+                                    "assignment.\n\t\tResponse:{}".format(port['name'], response_port_obj))
                 else:
                     json_data['sourcePorts'] = {
                         'objects': port_obj_ids
@@ -599,7 +594,6 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                 response_port_obj = self.getdata(url_search)
                 port_obj_ids = []
                 for port in rule['destinationPorts']:
-                    testvar = False
                     for obj in response_port_obj['items']:
                         if port['name'] == obj['name']:
                             tmp = {
@@ -608,11 +602,9 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                                 'id': obj['id'],
                             }
                             port_obj_ids.append(tmp)
-                            testvar = True
-                    if testvar is False:
-                        logging.info("\tPort {} is not found.  Skipping destination port assignment.".format(port['name']))
                 if len(port_obj_ids) < 1:
-                    logging.info("\tNo destinationPorts.  Skipping this section.")
+                    logging.warning("\tPort {} is not found.  Skipping destination port "
+                                    "assignment.\n\t\tResponse:{}".format(port['name'], response_port_obj))
                 else:
                     json_data['destinationPorts'] = {
                         'objects': port_obj_ids

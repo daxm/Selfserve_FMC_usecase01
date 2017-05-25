@@ -5,6 +5,7 @@ import time
 import random
 
 #  Created or Provided by User
+autodeploy = True
 dev_port = random.randint(1, 65535)
 dev_host_ip = '{}.{}.{}.{}'.format(random.randint(1, 223),
                                    random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
@@ -72,7 +73,7 @@ acp_rule = [
 
 # ########################################### Main Program ####################################################
 
-with fmcapi.FMC(serverIP, username=username, password=password) as fmc1:
+with fmcapi.FMC(serverIP, username=username, password=password, autodeploy=autodeploy) as fmc1:
     # Remove timed out entries. (This will remove acprules, hostips, and protocolports.
     # Remove entries that are older than 'dev_maxlife' seconds
     expired_timestamp = int(time.time() - dev_maxlife_seconds)
@@ -82,8 +83,8 @@ with fmcapi.FMC(serverIP, username=username, password=password) as fmc1:
     fmc1.createhostobjects(host_ip)
     fmc1.createprotocolportobjects(protocol_port)
     # Occasionally the FMC is still "sync'ing" the newly added items and this can cause the use of them in
-    #  the createacprule() command to fail.  Let's wait 1 second before continuing.
-    time.sleep(1)
+    #  the createacprule() command to fail.  Let's wait a bit before continuing.
+    time.sleep(5)
 
     # Create ACP Rule
     fmc1.createacprules(acp_rule)
