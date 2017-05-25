@@ -18,6 +18,8 @@ There exists a "Quick Start Guide" for the FMC API too.  Just Google for it as i
 """
 
 # Creating a custom log level to enable "logging" of the documentation.  Use via command 'logging.log(DOC,<string>)'.
+# This custom logging level is "in between DEBUG and INFO".  So, you can enable detailed documentation about each
+# method and class in this module without adding the DEBUG output as well.
 DOC = 15
 logging.addLevelName(DOC, 'DOC')
 
@@ -43,6 +45,8 @@ logging.getLogger("requests").setLevel(logging.WARNING)
 logging.log(DOC, """FMC is a class object in python.  Think of it as a "template" to be used to create instances of.
 In our code we create an instance called 'fmc1' of the FMC class and then access the FMC class' methods via 'fmc1'.
 """)
+
+
 class FMC(object):
     logging.log(DOC, """The FMC class has a series of methods, "def", that are used to interact with the Cisco FMC
 via its API.    
@@ -64,12 +68,12 @@ Typically, you configure your instance variables here.
         self.username = username
         self.password = password
         self.autodeploy = autodeploy
-        self.token_expiry = None
-        self.refreshtoken = None
-        self.token_refreshes = None
-        self.token = None
-        self.uuid = None
-        self.base_url = None
+        self.token_expiry = datetime.datetime.now()
+        self.refreshtoken = ''
+        self.token_refreshes = 0
+        self.token = ''
+        self.uuid = ''
+        self.base_url = ''
 
     def __enter__(self):
         logging.log(DOC, """In the __enter__() (pronounced "dunder enter") method.
@@ -97,9 +101,11 @@ changes.
             self.deploychanges()
         else:
             logging.info("Auto deploy changes set to False.  "
-                            "Use the Deploy button in FMC to push changes to FTDs.\n\n")
+                         "Use the Deploy button in FMC to push changes to FTDs.\n\n")
 
 # FMC Connection Maintenance
+
+    # FMC Connection and Token Maintenance
 
     def reset_token_expiry(self):
         logging.log(DOC, """In the reset_token_expiry() method.
@@ -134,7 +140,9 @@ to set our associated instance variables.
         headers = {'Content-Type': 'application/json'}
         url = "https://" + self.host + self.API_PLATFORM_VERSION + "auth/generatetoken"
         logging.info("Requesting token from {}.".format(url))
-        response = requests.post(url, headers=headers, auth=requests.auth.HTTPBasicAuth(self.username, self.password), verify=self.VERIFY_CERT)
+        response = requests.post(url, headers=headers,
+                                 auth=requests.auth.HTTPBasicAuth(self.username, self.password),
+                                 verify=self.VERIFY_CERT)
         self.token = response.headers.get('X-auth-access-token')
         self.refreshtoken = response.headers.get('X-auth-refresh-token')
         self.uuid = response.headers.get('DOMAIN_UUID')
@@ -158,13 +166,15 @@ If our token has expired it will use the connect() method to generate a new one.
 
 # API Method Calls
 
-    def postdata(self, url, json_data):
-        logging.log(DOC, """In the postdata() method.
-This method is used to send POST requests to the FMC.  First we check the validity of our token, then using the values 
-passed into this method we connect to the FMC using the requests.post() function.  The FMC does rate limit the number
-of API connections to 120 per minute.  So, we use the status_code to continue trying until we don't exceed that limit.
-If we don't get a status_code error (300 or higher means something is wrong) we return the response to whatever called
-this method.
+    # FMC to FTD Interactions
+
+    def send_to_api(self, method='', url='', json_data={}):
+        logging.log(DOC, """In the send_to_api() method.
+This method is used to send GET/POST/PUT/DELETE requests to the FMC.  First we check the validity of our token, 
+then using the values passed into this method we connect to the FMC using the requests library.  The FMC does 
+rate limit the number of API connections to 120 per minute.  So, we use the status_code to continue trying until 
+we don't exceed that limit.  If we don't get a status_code error (300 or higher means something is wrong) we return 
+the response to whatever called this method.
 """)
         self.checktoken()
         # POST json_data with the REST CALL
@@ -173,7 +183,17 @@ this method.
             url = self.base_url + url
             status_code = 429
             while status_code == 429:
-                response = requests.post(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
+                if method == 'get':
+                    response = requests.get(url, headers=headers, verify=self.VERIFY_CERT)
+                elif method == 'post':
+                    response = requests.post(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
+                elif method == 'put':
+                    response = requests.put(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
+                elif method == 'delete':
+                    response = requests.delete(url, headers=headers, verify=self.VERIFY_CERT)
+                else:
+                    logging.error("No request method given.  Returning nothing.")
+                    return
                 status_code = response.status_code
                 if status_code == 429:
                     logging.warning("Too many connections to the FMC.  Waiting 30 seconds and trying again.")
@@ -188,98 +208,6 @@ this method.
             response.close()
         return json_response
 
-    def putdata(self, url, json_data):
-        logging.log(DOC, """In the puttdata() method.
-This method is used to send PUT requests to the FMC.  First we check the validity of our token, then using the values 
-passed into this method we connect to the FMC using the requests.put() function.  The FMC does rate limit the number
-of API connections to 120 per minute.  So, we use the status_code to continue trying until we don't exceed that limit.
-If we don't get a status_code error (300 or higher means something is wrong) we return the response to whatever called
-this method.
-""")
-        self.checktoken()
-        # PUT json_data with the REST CALL
-        try:
-            headers = {'Content-Type': 'application/json', 'X-auth-access-token': self.token}
-            url = self.base_url + url
-            status_code = 429
-            while status_code == 429:
-                response = requests.put(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
-                status_code = response.status_code
-                if status_code == 429:
-                    logging.warning("Too many connections to the FMC.  Waiting 30 seconds and trying again.")
-                    time.sleep(30)
-            json_response = json.loads(response.text)
-            if status_code > 301 or 'error' in json_response:
-                response.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            logging.error("Error in PUT operation --> {}".format(str(err)))
-            logging.error("json_response -->\t{}".format(json_response))
-        if response:
-            response.close()
-        return json_response
-
-    def getdata(self, url):
-        logging.log(DOC, """In the getdata() method.
-This method is used to send GET requests to the FMC.  First we check the validity of our token, then using the values 
-passed into this method we connect to the FMC using the requests.get() function.  The FMC does rate limit the number
-of API connections to 120 per minute.  So, we use the status_code to continue trying until we don't exceed that limit.
-If we don't get a status_code error (300 or higher means something is wrong) we return the response to whatever called
-this method.
-""")
-        self.checktoken()
-        # GET requested data and return it.
-        try:
-            headers = {'Content-Type': 'application/json', 'X-auth-access-token': self.token}
-            url = self.base_url + url
-            status_code = 429
-            while status_code == 429:
-                response = requests.get(url, headers=headers, verify=self.VERIFY_CERT)
-                status_code = response.status_code
-                if status_code == 429:
-                    logging.warning("Too many connections to the FMC.  Waiting 30 seconds and trying again.")
-                    time.sleep(30)
-            json_response = json.loads(response.text)
-            if status_code > 301 or 'error' in json_response:
-                response.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            logging.error("Error in GET operation --> {}".format(str(err)))
-            logging.error("json_response -->\t{}".format(json_response))
-        if response:
-            response.close()
-        return json_response
-
-    def deletedata(self, url):
-        logging.log(DOC, """In the deletetdata() method.
-This method is used to send DELETE requests to the FMC.  First we check the validity of our token, then using the values 
-passed into this method we connect to the FMC using the requests.delete() function.  The FMC does rate limit the number
-of API connections to 120 per minute.  So, we use the status_code to continue trying until we don't exceed that limit.
-If we don't get a status_code error (300 or higher means something is wrong) we return the response to whatever called
-this method.
-""")
-        self.checktoken()
-        # PUT json_data with the REST CALL
-        try:
-            headers = {'Content-Type': 'application/json', 'X-auth-access-token': self.token}
-            url = self.base_url + url
-            status_code = 429
-            while status_code == 429:
-                response = requests.delete(url, headers=headers, verify=self.VERIFY_CERT)
-                status_code = response.status_code
-                if status_code == 429:
-                    logging.warning("Too many connections to the FMC.  Waiting 30 seconds and trying again.")
-                    time.sleep(30)
-            json_response = json.loads(response.text)
-            if status_code > 301 or 'error' in json_response:
-                response.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            logging.error("Error in DELETE operation --> {}".format(str(err)))
-            logging.error("json_response -->\t{}".format(json_response))
-        if response:
-            response.close()
-        return json_response
-
-# FMC to FTD Interactions
-
     def getdeployabledevices(self):
         logging.log(DOC, """In the getdeployabledevices() method.
 This method will tabulate which devices managed by the FMC are needing updated due to changes in the FMC.
@@ -292,7 +220,7 @@ the FMC's managed devices to update what needs deployments (or not).
         time.sleep(waittime)
         logging.info("Getting a list of deployable devices.")
         url = "/deployment/deployabledevices?expanded=true"
-        response = self.getdata(url)
+        response = self.send_to_api(method='get', url=url)
         # Now to parse the response list to get the UUIDs of each device.
         if 'items' not in response:
             return
@@ -326,27 +254,26 @@ through that list and send a request to the FMC to push changes to that device.
             logging.info("Adding device {} to deployment queue.".format(device))
             json_data['deviceList'].append(device)
         logging.info("Deploying changes to devices.")
-        response = self.postdata(url, json_data)
+        response = self.send_to_api(method='post', url=url, json_data=json_data)
         return response['deviceList']
 
-# FMC Objects
+    # FMC Object Manipulations
 
     def cleanupexpiredentries(self, **kwargs):
         logging.log(DOC, """In cleanupexpiredentries() method.
 This method removes any ACP Rules, Host Objects, and Port Objects that have an expired timestamp value in their name.
 """)
         url_search = "/policy/accesspolicies" + "?name=" + kwargs['acp_name']
-        response = self.getdata(url_search)
+        response = self.send_to_api(method='get', url=url_search)
         acp_id = None
         if response.get('items', '') is '':
             logging.error("Access Control Policy not found. Exiting.")
             exit(1)
         else:
             acp_id = response['items'][0]['id']
-
         # Now that we have the ACP ID.  Get all its rules and parse them to look at their names.
         url_search = "/policy/accesspolicies/" + acp_id + "/accessrules"
-        response = self.getdata(url_search)
+        response = self.send_to_api(method='get', url=url_search)
         if response.get('items', '') is '':
             logging.warning("No rules found for Access Control Policy: {}.".format(kwargs['acp_name']))
         else:
@@ -356,35 +283,33 @@ This method removes any ACP Rules, Host Objects, and Port Objects that have an e
                     if int(namesplit[2]) < kwargs['threshold_time']:
                         logging.info("Deleting {} rule from {}.".format(item['name'], kwargs['acp_name']))
                         url = url_search + "/" + item['id']
-                        self.deletedata(url)
-
+                        self.send_to_api(method='delete', url=url)
         # Now Delete any expired Host objects.
         url_search = "/object/hosts"
-        response = self.getdata(url_search)
+        response = self.send_to_api(method='get', url=url_search)
         for item in response['items']:
             if 'Dev-' in item['name']:
                 namesplit = item['name'].split('-')
                 if int(namesplit[2]) < kwargs['threshold_time']:
                     logging.info("Deleting {} host object.".format(item['name']))
                     url = url_search + "/" + item['id']
-                    self.deletedata(url)
-
+                    self.send_to_api(method='delete', url=url)
         # Finally Delete any expired Port objects.
         url_search = "/object/protocolportobjects"
-        response = self.getdata(url_search)
+        response = self.send_to_api(method='get', url=url_search)
         for item in response['items']:
             if 'Dev-' in item['name']:
                 namesplit = item['name'].split('-')
                 if int(namesplit[2]) < kwargs['threshold_time']:
                     logging.info("Deleting {} port object.".format(item['name']))
                     url = url_search + "/" + item['id']
-                    self.deletedata(url)
+                    self.send_to_api(method='delete', url=url)
 
     def createhostobjects(self, hosts):
         logging.log(DOC, """In the createhostobjects() method.
 This method is used to create new Host Objects.  It takes in a list of hosts (a list of formatted dictionaries), then
 iterates through that list to format the dictionary values into a "JSON" format.  Then this method issues a call to
-the postdata() method with this formatted information (along with the URL for creating Host Objects).
+the send_to_api() method with this formatted information (along with the URL for creating Host Objects).
 Once it gets a reply it ensures that there is an 'id' field in the response otherwise output an eror message since
 something went wrong.
 """)
@@ -396,7 +321,7 @@ something went wrong.
                 'value': host['value'],
                 'type': 'Host',
             }
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('id', '') is not '':
                 host['id'] = response['id']
                 logging.info("\tCreated host object: {}.".format(host['name']))
@@ -408,7 +333,7 @@ something went wrong.
 This method is used to create new Port Objects.  (I'm not sure why the FMC lists 
 these as having a type='ProtocolPortObject' when in the FMC GUI they are shown in the Port page.)
 This method takes in a list of ports (a list of formatted dictionaries), then iterates through that list to format 
-the dictionary values into a "JSON" format.  Then this method issues a call to the postdata() method with this 
+the dictionary values into a "JSON" format.  Then this method issues a call to the send_to_api() method with this 
 formatted information (along with the URL for creating Port Objects).  Once it gets a reply it ensures that there is 
 an 'id' field in the response otherwise output an eror message since something went wrong.
 """)
@@ -421,7 +346,7 @@ an 'id' field in the response otherwise output an eror message since something w
                 'protocol': port['protocol'],
                 'type': 'ProtocolPortObject',
             }
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('id', '') is not '':
                 port['id'] = response['id']
                 logging.info("\tCreated port object: {}.".format(port['name']))
@@ -439,14 +364,14 @@ For example, the sourceNetworks and/or destinationNetworks reference either Host
 stored somewhere else in the FMC.  So, if we see one of those settings defined in the passed dictionary we need to
 query the FMC for it's 'id' (since we reference it by name in the dictionary) and then build out that part of the
 json_data variable.
-Finally, once the json_data variable is fully built we send it, and the url variable, to postdata() method.  The
+Finally, once the json_data variable is fully built we send it, and the url variable, to send_to_api() method.  The
 returned response is checked to see that an 'id' value exists, otherwise post an error to the log.
 """)
         logging.info("Creating ACP Rules.")
         for rule in rules:
             # Get ACP's ID for this rule
             url_search = "/policy/accesspolicies" + "?name=" + rule['acpName']
-            response = self.getdata(url_search)
+            response = self.send_to_api(method='get', url=url_search)
             acp_id = None
             if response.get('items', '') is '':
                 logging.error("\tAccess Control Policy not found. Exiting.")
@@ -467,14 +392,14 @@ returned response is checked to see that an 'id' value exists, otherwise post an
             if rule.get('ipsPolicy', '') is not '':
                 # Currently you cannot query IPS Policies by name.  I'll have to grab them all and filter from there.
                 url_search = "/policy/intrusionpolicies"
-                response = self.getdata(url_search)
+                response = self.send_to_api(method='get', url=url_search)
                 ips_policy_id = None
-                for policy in response['items']:
-                    if policy['name'] == rule['ipsPolicy']:
-                        ips_policy_id = policy['id']
+                for policie in response['items']:
+                    if policie['name'] == rule['ipsPolicy']:
+                        ips_policy_id = policie['id']
                 if ips_policy_id is None:
                     logging.warning("\tIntrusion Policy {} is not found.  Skipping ipsPolicy "
-                                    "assignment.\n\t\tResponse:{}".format(policy['name'], response))
+                                    "assignment.\n\t\tResponse:{}".format(policie['name'], response))
                 else:
                     json_data['ipsPolicy'] = {
                         'name': rule['ipsPolicy'],
@@ -486,7 +411,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                 securityzone_ids = []
                 for zone in rule['sourceZones']:
                     url_search = "/object/securityzones" + "?name=" + zone['name']
-                    response = self.getdata(url_search)
+                    response = self.send_to_api(method='get', url=url_search)
                     if response.get('items', '') is '':
                         logging.warning("\tSecurity Zone {} is not found.  Skipping destination zone "
                                         "assignment.\n\t\tResponse:{}".format(zone['name'], response))
@@ -506,7 +431,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                 securityzone_ids = []
                 for zone in rule['destinationZones']:
                     url_search = "/object/securityzones" + "?name=" + zone['name']
-                    response = self.getdata(url_search)
+                    response = self.send_to_api(method='get', url=url_search)
                     if response.get('items', '') is '':
                         logging.warning("\tSecurity Zone {} is not found.  Skipping destination zone "
                                         "assignment.\n\t\tResponse:{}".format(zone['name'], response))
@@ -526,7 +451,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                 url_search = "/object/networkaddresses"
                 # Grab a copy of the current Network Objects on the server and we will cycle through these for each
                 # sourceNetwork.
-                response_network_obj = self.getdata(url_search)
+                response_network_obj = self.send_to_api(method='get', url=url_search)
                 network_obj_ids = []
                 for network in rule['sourceNetworks']:
                     for obj in response_network_obj['items']:
@@ -549,7 +474,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                 url_search = "/object/networkaddresses"
                 # Grab a copy of the current Network Objects on the server and we will cycle through these for each
                 # sourceNetwork.
-                response_network_obj = self.getdata(url_search)
+                response_network_obj = self.send_to_api(method='get', url=url_search)
                 network_obj_ids = []
                 for network in rule['destinationNetworks']:
                     for obj in response_network_obj['items']:
@@ -570,7 +495,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
             if rule.get('sourcePorts', '') is not '':
                 # Currently you cannot query via by name.  I'll have to grab them all and filter from there.
                 url_search = "/object/protocolportobjects"
-                response_port_obj = self.getdata(url_search)
+                response_port_obj = self.send_to_api(method='get', url=url_search)
                 port_obj_ids = []
                 for port in rule['sourcePorts']:
                     for obj in response_port_obj['items']:
@@ -591,7 +516,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
             if rule.get('destinationPorts', '') is not '':
                 # Currently you cannot query via by name.  I'll have to grab them all and filter from there.
                 url_search = "/object/protocolportobjects"
-                response_port_obj = self.getdata(url_search)
+                response_port_obj = self.send_to_api(method='get', url=url_search)
                 port_obj_ids = []
                 for port in rule['destinationPorts']:
                     for obj in response_port_obj['items']:
@@ -611,7 +536,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
                     }
             # Update URL to be specific to this ACP's ruleset.
             url = "/policy/accesspolicies/" + acp_id + "/accessrules"
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('id', '') is not '':
                 rule['id'] = response['id']
                 logging.info("\tACP Rule {} created.".format(rule['name']))
@@ -622,7 +547,7 @@ returned response is checked to see that an 'id' value exists, otherwise post an
         logging.log(DOC, """In the registerdevices() method.
 This method is used to register new devices with the FMC.  Using the list of dictionaries passed into this method it 
 loops through the data to format the json_data variable.  Once set up the json_data and url variables are sent to the
-postdata() method to tell the FMC to attempt to register this device.
+send_to_api() method to tell the FMC to attempt to register this device.
 A lot can go wrong here.  For example, I always forget to enable my licensing and/or I forget to issue the command:
 "configure manager <ip> <reg key> <nat id>" on the device.  This will mean that the FMC will get this request to
 register a device but can't.  Another problem is that the time it takes to fully register a device is LONG.  I don't
@@ -641,7 +566,7 @@ registrations and then, once I've confirmed the devices are registered, I run an
             }
             # Get ACP's ID for this rule
             url_search = "/policy/accesspolicies" + "?name=" + device['acpName']
-            response = self.getdata(url_search)
+            response = self.send_to_api(method='get', url=url_search)
             if response.get('items', '') is '':
                 logging.error("\tAccess Control Policy not found. Exiting.")
                 continue
@@ -651,7 +576,7 @@ registrations and then, once I've confirmed the devices are registered, I run an
                 'type': 'AccessPolicy'
             }
             url = "/devices/devicerecords"
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('metadata', '') is not '':
                 logging.info("\t%s registration can take some time (5 minutes or more)." % device['name'])
                 logging.info("\t\tIssue the command 'show managers' on", device['name'], "to view progress.")
@@ -660,7 +585,7 @@ registrations and then, once I've confirmed the devices are registered, I run an
         logging.log(DOC, """In the createsecurityzones() method.
 This method is used to create new Security Zones in the FMC.  It accepts a list of python dictionaries that contain
 the needed information to build a security zone.  This list is looped through and for each entry a json_data variable
-is configured and sent, along with the url variable, to the postdata() method to create the zone.  If the returned
+is configured and sent, along with the url variable, to the send_to_api() method to create the zone.  If the returned
 response doesn't contain an 'id' value an error is thrown.
 """)
         logging.info("Creating Security Zones.")
@@ -672,7 +597,7 @@ response doesn't contain an 'id' value an error is thrown.
                 "description": zone['desc'],
                 "interfaceMode": zone['mode'],
             }
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('id', '') is not '':
                 zone['id'] = response['id']
                 logging.info("\tCreated Security Zone {}.".format(zone['name']))
@@ -683,7 +608,7 @@ response doesn't contain an 'id' value an error is thrown.
         logging.log(DOC, """In the createnetworkobjects() method.
 This method is used to create new Network Objects in the FMC.  It accepts a list of python dictionaries that contain
 the needed information to build a network object.  This list is looped through and for each entry a json_data variable
-is configured and sent, along with the url variable, to the postdata() method to create the object.  If the returned
+is configured and sent, along with the url variable, to the send_to_api() method to create the object.  If the returned
 response doesn't contain an 'id' value an error is thrown.
 """)
         logging.info("Creating Network Objects.")
@@ -695,7 +620,7 @@ response doesn't contain an 'id' value an error is thrown.
                 'description': obj['desc'],
                 'type': 'Network',
             }
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('id', '') is not '':
                 obj['id'] = response['id']
                 logging.info("\tCreated Network Object {}.".format(obj['name']))
@@ -706,7 +631,7 @@ response doesn't contain an 'id' value an error is thrown.
         logging.log(DOC, """In the createurls() method.
 This method is used to create new URL Objects in the FMC.  It accepts a list of python dictionaries that contain
 the needed information to build a url object.  This list is looped through and for each entry a json_data variable
-is configured and sent, along with the url variable, to the postdata() method to create the object.  If the returned
+is configured and sent, along with the url variable, to the send_to_api() method to create the object.  If the returned
 response doesn't contain an 'id' value an error is thrown.
 """)
         logging.info("Creating URL Objects.")
@@ -718,7 +643,7 @@ response doesn't contain an 'id' value an error is thrown.
                 'description': obj['desc'],
                 'type': 'Url',
             }
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('id', '') is not '':
                 obj['id'] = response['id']
                 logging.info("\tCreated URL Object {}.".format(obj['name']))
@@ -729,7 +654,7 @@ response doesn't contain an 'id' value an error is thrown.
         logging.log(DOC, """In the createacps() method.
 This method is used to create new Access Control Policy(s) in the FMC.  It accepts a list of python dictionaries that
 contain the needed information to build an ACP.  This list is looped through and for each entry a json_data variable
-is configured and sent, along with the url variable, to the postdata() method to create the object.  If the returned
+is configured and sent, along with the url variable, to the send_to_api() method to create the object.  If the returned
 response doesn't contain an 'id' value an error is thrown.
 """)
         logging.info("Creating Access Control Policies.")
@@ -743,7 +668,7 @@ response doesn't contain an 'id' value an error is thrown.
             if False and policy.get('parent', '') is not '':
                 # Modifying Metatdata is not supported so we cannot create "child" ACPs yet.  :-(
                 url_search = url + "?name=" + policy['parent']
-                response = self.getdata(url_search)
+                response = self.send_to_api(method='get', url=url_search)
                 json_data['metadata'] = {
                     'inherit': True,
                     'parentPolicy': {
@@ -754,12 +679,13 @@ response doesn't contain an 'id' value an error is thrown.
                 }
             else:
                 json_data['defaultAction'] = {'action': policy['defaultAction']}
-            response = self.postdata(url, json_data)
+            response = self.send_to_api(method='post', url=url, json_data=json_data)
             if response.get('id', '') is not '':
                 policy['id'] = response['id']
                 logging.info("\tCreated Access Control Policy {}.".format(policy['name']))
             else:
-                logging.error("Creation of Access Control Policy: {} failed to return an 'id' value.".format(policy['name']))
+                logging.error("Creation of Access Control Policy: {} failed to return an "
+                              "'id' value.".format(policy['name']))
 
     def modifydevice_physicalinterfaces(self, device_attributes):
         logging.log(DOC, """In the modifydevice_physicalinterfaces() method.
@@ -770,7 +696,7 @@ The idea is to be able to set up IP addresses and Zones on a device's interfaces
         # Get ID of this FTD Device first.  Alas, you can't GET by name.  :-(
         url_search = "/devices/devicerecords"
         # Grab a copy of the current Devices on the server so that we can cycle through to find the one we want.
-        response_devices = self.getdata(url_search)
+        response_devices = self.send_to_api(method='get', url=url_search)
         if response_devices.get('items', '') is '':
             # It there are no devices (or we can't query them for some reason) none of this will work.
             logging.info("\tQuery for a list of Devices failed.  Exiting.")
@@ -782,22 +708,26 @@ The idea is to be able to set up IP addresses and Zones on a device's interfaces
                 if device['name'] == attribute['deviceName']:
                     device_id = device['id']
             if device_id is None:
-                logging.info("\tDevice {} is not found.  Skipping modifying interfaces.".format(attribute['deviceName']))
+                logging.info("\tDevice {} is not found.  Skipping modifying "
+                             "interfaces.".format(attribute['deviceName']))
             else:
                 #  Now that we have the device's ID.  Time to loop through our physical interfaces and see if we can
                 # match them to this device's interfaces to get an ID.
                 for device in attribute['physicalInterfaces']:
                     url = url_search + "/" + device_id + "/physicalinterfaces"
                     url_search2 = url + "?name=" + device['name']
-                    response_interface = self.getdata(url_search2)
+                    response_interface = self.send_to_api(method='get', url=url_search2)
                     if response_interface.get('items', '') is '':
-                        logging.info("\tDevice {} has not physical interface named {}.".format(attribute['deviceName'],device['name']))
+                        logging.info("\tDevice {} has not physical interface "
+                                     "named {}.".format(attribute['deviceName'], device['name']))
                     else:
                         # Get the ID for the Security Zone.
                         url_search3 = "/object/securityzones" + "?name=" + device['securityZone']
-                        response_securityzone = self.getdata(url_search3)
+                        response_securityzone = self.send_to_api(method='get', url=url_search3)
                         if response_securityzone.get('items', '') is '':
-                            logging.info("\tSecurity Zone {} is not found.  Skipping modifying interface {} for device {}.".format(device['securityZone'], device['name'], attribute['deviceName']))
+                            logging.info("\tSecurity Zone {} is not found.  Skipping modifying interface {} for "
+                                         "device {}.".format(device['securityZone'], device['name'],
+                                                             attribute['deviceName']))
                         else:
                             # Time to modify this interface's information.
                             json_data = {
@@ -813,8 +743,10 @@ The idea is to be able to set up IP addresses and Zones on a device's interfaces
                                 },
                                 'ipv4': device['ipv4'],
                             }
-                    response = self.putdata(url, json_data)
+                    response = self.send_to_api(method='put', url=url, json_data=json_data)
                     if response.get('metadata', '') is not '':
-                        logging.info("\tInterface {} on device {} has been modified.".format(device['name'], attribute['deviceName']))
+                        logging.info("\tInterface {} on device {} has been modified.".format(device['name'],
+                                                                                             attribute['deviceName']))
                     else:
-                        logging.info("\tSomething wrong happened when modifying interface {} on device {}.".format(device['name'], attribute['deviceName']))
+                        logging.info("\tSomething wrong happened when modifying "
+                                     "interface {} on device {}.".format(device['name'], attribute['deviceName']))
