@@ -1,3 +1,12 @@
+"""
+Firepower Management Center API script class for managing Firepower Threat Defense
+ and legacy Firepower devices through a Firepower Management Center.
+
+There exists a "Quick Start Guide" for the FMC API too.  Just Google for it as it gets updated with each
+ release of code.
+
+"""
+
 import logging
 import datetime
 import json
@@ -5,17 +14,15 @@ import requests
 import time
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
+__author__ = 'Dax Mickelson <dmickels@cisco.com'
+__credits__ = ['Ryan Malloy <rymalloy@cisco.com>', 'Neil Patel <neipatel@cisco.com>']
+__maintainer__ = 'Dax Mickelson'
+__email__ = 'dmickels@cisco.com'
+__repository__ = 'https://github.com/daxm/Selfserve_FMC_usecase01'
+__status__ = 'Development'
+
 # Disable annoying HTTP warnings
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
-"""
-Firepower Management Center API script class for managing Firepower Threat Defense
- and legacy Firepower devices through a Firepower Management Center.
- 
-There exists a "Quick Start Guide" for the FMC API too.  Just Google for it as it gets updated with each
- release of code.
- 
-"""
 
 # Creating a custom log level to enable "logging" of the documentation.  Use via command 'logging.log(DOC,<string>)'.
 # This custom logging level is "in between DEBUG and INFO".  So, you can enable detailed documentation about each
@@ -109,12 +116,12 @@ changes.
     def __authorship__(self):
         logging.log(DOC,"""In the __authorship__() method.
 ***********************************************************************************************************************
-This python module was created by Dax Mickelson <dmickels@cisco.com> along with LOTs of help from 
-Ryan Malloy <rymalloy@cisco.com> and Neil Patel <neipatel@cisco.com>.
-Feel free to send me comments/suggestions/improvements.  Either by email or more importantly via a Pull request
-from the github repository: https://github.com/daxm/<blah>.
+This python module was created by {} along with LOTs of help from 
+{}.
+Feel free to send me comments/suggestions/improvements.  Either by email: {} or more importantly via a Pull request
+from the github repository: {}.
 ***********************************************************************************************************************
-""")
+""".format(__author__, __credits__, __email__, __repository__))
 
     # FMC Connection and Token Maintenance
 
