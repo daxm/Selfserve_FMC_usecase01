@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 """
-This file is the "destination" for the Flash form that the Developer will use to issue their request to open
+This file is the "destination" for the Flask form that the Developer will use to issue their request to open
 a port in the firewall to their IP address.
 """
 
@@ -17,7 +17,7 @@ __repository__ = 'https://github.com/daxm/Selfserve_FMC_usecase01'
 __status__ = 'Development'
 
 #  Created or Provided by User
-autodeploy = True
+autodeploy = False
 dev_port = random.randint(1, 65535)
 dev_host_ip = '{}.{}.{}.{}'.format(random.randint(1, 223),
                                    random.randint(0, 255), random.randint(0, 255), random.randint(1, 254))
@@ -89,14 +89,14 @@ with fmcapi.FMC(serverIP, username=username, password=password, autodeploy=autod
     # Remove timed out entries. (This will remove acprules, hostips, and protocolports.
     # Remove entries that are older than 'dev_maxlife' seconds
     expired_timestamp = int(time.time() - dev_maxlife_seconds)
-    fmc1.cleanupexpiredentries(threshold_time=expired_timestamp, acp_name=acp_name)
+    fmc1.cleanup_expired_dev_entries(threshold_time=expired_timestamp, acp_name=acp_name)
 
     # Create Port and Host IP first.
-    fmc1.createhostobjects(host_ip)
-    fmc1.createprotocolportobjects(protocol_port)
+    fmc1.create_host_objects(host_ip)
+    fmc1.create_protocol_port_objects(protocol_port)
     # Occasionally the FMC is still "sync'ing" the newly added items and this can cause the use of them in
     #  the createacprule() command to fail.  Let's wait a bit before continuing.
     time.sleep(5)
 
     # Create ACP Rule
-    fmc1.createacprules(acp_rule)
+    fmc1.create_acp_rules(acp_rule)
