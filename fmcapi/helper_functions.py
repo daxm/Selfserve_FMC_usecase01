@@ -24,11 +24,11 @@ def syntax_correcter(value, permitted_syntax="[.\w\d_\-]", replacer='_'):
     return new_value
 
 
-def check_for_host_or_range(value):
+def get_networkaddress_type(value):
     """
     Check to see whether 'value' is a host, range, or network.
     :param value: 
-    :return: 
+    :return: 'host'/'network'/'range'
     """
     if '/' in value:
         ip, bitmask = value.split('/')
@@ -44,6 +44,11 @@ def check_for_host_or_range(value):
 
 
 def is_ip(ip):
+    """
+    Checks to see whether the provided string is an IP address.
+    :param ip: String
+    :return: True/False
+    """
     try:
         ipaddress.ip_address(ip)
     except ValueError as err:
@@ -53,6 +58,12 @@ def is_ip(ip):
 
 
 def is_ip_network(ip):
+    """
+    Checks to see whether the provided string is a valid network address.  That is, it checks to see if the
+     provided IP/SM is the "network address" of the subnet.
+    :param ip: String
+    :return: True/False
+    """
     try:
         ipaddress.ip_network(ip)
     except ValueError as err:
@@ -65,7 +76,7 @@ def validate_ip_bitmask_range(value, value_type):
     """
     We need to check the provided IP address (or range of addresses) and make sure the IPs are valid.
     :param value: IP, IP/Bitmask, or IP Range
-    :param value_type: 
+    :param value_type: 'host'/'network'/'range'
     :return: dict {value=value_fixed, valid=boolean}
     """
     return_dict = {'value': value, 'valid': False}
@@ -80,6 +91,11 @@ def validate_ip_bitmask_range(value, value_type):
 
 
 def mocked_requests_get(**kwargs):
+    """
+    Use to "mock up" a response from using the "requests" library to avoid actually using the "requests" library.
+    :param kwargs: 
+    :return: 
+    """
     class MockResponse:
         def __init__(self, **kwargs):
             self.text = json.dumps(kwargs['text'])
