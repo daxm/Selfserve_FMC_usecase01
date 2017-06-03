@@ -5,6 +5,7 @@ Misc methods/functions that are used by the fmcapi package's modules.
 import re
 import ipaddress
 import json
+import logging
 
 
 def syntax_correcter(value, permitted_syntax="[.\w\d_\-]", replacer='_'):

@@ -7,11 +7,6 @@ import datetime
 import requests
 from .helper_functions import *
 
-DOC = 15
-logging.addLevelName(DOC, 'DOC')
-TSHOOT = 35
-logging.addLevelName(TSHOOT, 'TSHOOT')
-
 
 class Token(object):
     """
@@ -24,10 +19,14 @@ class Token(object):
     API_PLATFORM_VERSION = 'api/fmc_platform/v1'
 
     def __init__(self, host='192.168.45.45', username='admin', password='Admin123', verify_cert=False):
-        """In the Token class' __init__() (pronounced "dunder init") method:
-This method is ran each time an instance of the class is created. Typically, you configure your instance variables here.
         """
-        logging.log(DOC, self.__init__.__doc__)
+        Initialize variables used in the Token class.
+        :param host:
+        :param username:
+        :param password:
+        :param verify_cert:
+        """
+        logging.debug("In the Token __init__() class method.")
 
         self.__host=host
         self.__username=username
@@ -40,10 +39,12 @@ This method is ran each time an instance of the class is created. Typically, you
         self.generate_tokens()
 
     def generate_tokens(self):
-        """In the generate_tokens() method:
-This method is used to set up and maintain the tokens used while accessing the FMC.
         """
-        logging.log(DOC, self.generate_tokens.__doc__)
+        Create new and refresh expired tokens.
+        :return:
+        """
+        logging.debug("In the Token generate_tokens() class method.")
+
         if self.token_refreshes <= self.MAX_REFRESHES and self.access_token is not None:
             headers = {'Content-Type': 'application/json', 'X-auth-access-token': self.access_token,
                        'X-auth-refresh-token': self.refresh_token}
@@ -66,10 +67,12 @@ This method is used to set up and maintain the tokens used while accessing the F
         self.uuid = response.headers.get('DOMAIN_UUID')
 
     def get_token(self):
-        """In the get_token() method:
-This method ensures the access_token hasn't expired and the returns it.
         """
-        logging.log(DOC, self.get_token.__doc__)
+        Check validity of current token.  If needed make a new or resfresh.  Then return access_token.
+        :return:
+        """
+        logging.debug("In the Token get_token() class method.")
+
         if datetime.datetime.now() > self.token_expiry:
             logging.info("Token Expired.")
             self.generate_tokens()

@@ -10,7 +10,7 @@ import time
 import random
 
 #  Created or Provided by User
-autodeploy = False
+autodeploy = True
 dev_port = random.randint(1, 65535)
 dev_host_ip = '{}.{}.{}.{}'.format(random.randint(1, 223),
                                    random.randint(0, 255), random.randint(0, 255), random.randint(1, 254))
