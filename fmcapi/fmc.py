@@ -13,6 +13,7 @@ import requests
 import time
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from .helper_functions import *
+from .api_objects import *
 from . import export
 
 # Disable annoying HTTP warnings
@@ -32,11 +33,11 @@ TSHOOT = 35
 logging.addLevelName(TSHOOT, 'TSHOOT')
 
 # Its always good to set up a log file.
-logging_format = '%(asctime)s - %(levelname)s:%(processName)s:%(filename)s:%(lineno)s - %(message)s'
+logging_format = '%(asctime)s - %(levelname)s:%(filename)s:%(lineno)s - %(message)s'
 logging_dateformat = '%Y/%m/%d-%H:%M:%S'
 # Logging level options are logging.DEBUG, DOC, logging.INFO, TSHOOT, logging.WARNING, logging.ERROR, logging.CRITICAL
 logging_level = logging.INFO
-# logging_level = DOC
+logging_level = DOC
 # logging_level = TSHOOT
 logging_filename = 'output.log'
 logging.basicConfig(format=logging_format, datefmt=logging_dateformat, filename=logging_filename, level=logging_level)
@@ -68,13 +69,11 @@ via its API.  Each method has its own DOCSTRING (like this triple quoted text he
     logging.log(DOC, """Variables that are assigned in a class (but not in one of a class' methods) are called
 class variables.  The idea behind these are that these variables are the same for all instances created of this class.
 """)
-    API_PLATFORM_VERSION = '/api/fmc_platform/v1/'
-    API_CONFIG_VERSION = '/api/fmc_config/v1/'
+    API_CONFIG_VERSION = 'api/fmc_config/v1'
     VERIFY_CERT = False
-    TOKEN_LIFETIME = 60 * 30
 
     def __init__(self, host='192.168.45.45', username='admin', password='Admin123', autodeploy=True):
-        """In the __init__() (pronounced "dunder init") method:
+        """In the FMC __init__() (pronounced "dunder init") method:
 This method is ran each time an instance of the class is created.
 Typically, you configure your instance variables here.
         """
@@ -83,12 +82,6 @@ Typically, you configure your instance variables here.
         self.username = username
         self.password = password
         self.autodeploy = autodeploy
-        self.token_expiry = datetime.datetime.now()
-        self.refreshtoken = ''
-        self.token_refreshes = 0
-        self.token = ''
-        self.uuid = ''
-        self.base_url = ''
         self.__authorship__()
 
     def __enter__(self):
@@ -102,7 +95,9 @@ instances of a program are running at the same time.
 In our case we are using the __enter_ method to establish a connection to the FMC via the connect() method.
         """
         logging.log(DOC, self.__enter__.__doc__)
-        self.connect()
+        self.mytoken = Token(host=self.host, username=self.username, password=self.password, verify_cert=self.VERIFY_CERT)
+        self.uuid = self.mytoken.uuid
+        self.base_url = "https://{}/{}/domain/{}".format(self.host, self.API_CONFIG_VERSION, self.uuid)
         return self
 
     def __exit__(self, *args):
@@ -121,8 +116,6 @@ changes.
             logging.info("Auto deploy changes set to False.  "
                          "Use the Deploy button in FMC to push changes to FTDs.\n\n")
 
-            # FMC Connection Maintenance
-
     def __authorship__(self):
         """In the __authorship__() method:
 ***********************************************************************************************************************
@@ -133,113 +126,49 @@ via a Pull request from the github repository: https://github.com/daxm/Selfserve
         """
         logging.log(DOC, self.__authorship__.__doc__)
 
-    # FMC Connection and Token Maintenance
-
-    def check_token(self):
-        """In the check_token() method:
-This method checks the age of our token with the self.token_expiry variable value to ensure our token has expired.
-If our token has expired it will use the connect() method to generate a new one.
-        """
-        logging.log(DOC, self.check_token.__doc__)
-        if datetime.datetime.now() > self.token_expiry:
-            logging.info("Token Expired.  Generating new token.")
-            self.connect()
-
-    def reset_token_expiry(self):
-        """In the reset_token_expiry() method:
-This method sets the instance variable self.token_expiry to the time in which our token with the FMC will expire.
-We will use this variable to see whether we need to refresh our token with the FMC.
-        """
-        logging.log(DOC, self.reset_token_expiry.__doc__)
-        self.token_expiry = datetime.datetime.now() + datetime.timedelta(seconds=self.TOKEN_LIFETIME)
-
-    def refresh_token(self):
-        """In the refresh_token() method:
-This method refreshes our token with the FMC if/when our token is expired.  Given that our program's connection to 
-the FMC is short lived it is very doubtful we will ever enter this method.
-        """
-        logging.log(DOC, self.refresh_token.__doc__)
-        headers = {'Content-Type': 'application/json', 'X-auth-access-token': self.token,
-                   'X-auth-refresh-token': self.refreshtoken}
-        url = "https://" + self.host + self.API_PLATFORM_VERSION + "auth/refreshtoken"
-        logging.info("Refreshing token from {}.".format(url))
-        response = requests.post(url, headers=headers, verify=self.VERIFY_CERT)
-        self.token_refreshes += 1
-        self.reset_token_expiry()
-        self.token = response.headers.get('X-auth-access-token')
-        self.refreshtoken = response.headers.get('X-auth-refresh-token')
-        headers['X-auth-access-token'] = self.token
-
-    def connect(self):
-        """In the connect() method:
-This method is used to set up our connection with the FMC.  Essentially this method issues a POST request to the FMC 
-providing our credentials (and possibly SSL cert, not implemented yet).  The FMC will generate a token value and 
-return that value along with the "domain UUID" (which is the GLOBAL UUID by default).  We use these returned values 
-to set our associated instance variables.
-        """
-        logging.log(DOC, self.connect.__doc__)
-        headers = {'Content-Type': 'application/json'}
-        url = "https://" + self.host + self.API_PLATFORM_VERSION + "auth/generatetoken"
-        logging.info("Requesting token from {}.".format(url))
-        response = requests.post(url, headers=headers,
-                                 auth=requests.auth.HTTPBasicAuth(self.username, self.password),
-                                 verify=self.VERIFY_CERT)
-        self.token = response.headers.get('X-auth-access-token')
-        self.refreshtoken = response.headers.get('X-auth-refresh-token')
-        self.uuid = response.headers.get('DOMAIN_UUID')
-        if self.token is None or self.uuid is None:
-            logging.error("No Token or DOMAIN_UUID found, terminating....")
-            exit(1)
-
-        self.base_url = "https://" + self.host + self.API_CONFIG_VERSION + "domain/" + self.uuid
-        self.reset_token_expiry()
-        self.token_refreshes = 0
-        logging.info("\tToken creation a success --> {} expires at {}".format(self.token, self.token_expiry))
-
     # API Method Calls
 
-    # FMC to FTD Interactions
-
     def send_to_api(self, method='', url='', json_data={}):
-        """In the send_to_api() method:
-This method is used to send GET/POST/PUT/DELETE requests to the FMC.  First we check the validity of our token, 
-then using the values passed into this method we connect to the FMC using the requests library.  The FMC does 
-rate limit the number of API connections to 120 per minute.  So, we use the status_code to continue trying until 
-we don't exceed that limit.  If we don't get a status_code error (300 or higher means something is wrong) we return 
-the response to whatever called this method.
-        """
-        logging.log(DOC, self.send_to_api.__doc__)
-        self.check_token()
-        # POST json_data with the REST CALL
-        try:
-            headers = {'Content-Type': 'application/json', 'X-auth-access-token': self.token}
-            url = self.base_url + url
-            status_code = 429
-            while status_code == 429:
-                if method == 'get':
-                    response = requests.get(url, headers=headers, verify=self.VERIFY_CERT)
-                elif method == 'post':
-                    response = requests.post(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
-                elif method == 'put':
-                    response = requests.put(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
-                elif method == 'delete':
-                    response = requests.delete(url, headers=headers, verify=self.VERIFY_CERT)
-                else:
-                    logging.error("No request method given.  Returning nothing.")
-                    return
-                status_code = response.status_code
-                if status_code == 429:
-                    logging.warning("Too many connections to the FMC.  Waiting 30 seconds and trying again.")
-                    time.sleep(30)
-            json_response = json.loads(response.text)
-            if status_code > 301 or 'error' in json_response:
-                response.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            logging.error("Error in POST operation --> {}".format(str(err)))
-            logging.error("json_response -->\t{}".format(json_response))
-        if response:
-            response.close()
-        return json_response
+            """In the send_to_api() method:
+    This method is used to send GET/POST/PUT/DELETE requests to the FMC.  First we check the validity of our token,
+    then using the values passed into this method we connect to the FMC using the requests library.  The FMC does
+    rate limit the number of API connections to 120 per minute.  So, we use the status_code to continue trying until
+    we don't exceed that limit.  If we don't get a status_code error (300 or higher means something is wrong) we return
+    the response to whatever called this method.
+            """
+            logging.log(DOC, self.send_to_api.__doc__)
+            # POST json_data with the REST CALL
+            try:
+                headers = {'Content-Type': 'application/json', 'X-auth-access-token': self.mytoken.get_token()}
+                url = self.base_url + url
+                status_code = 429
+                while status_code == 429:
+                    if method == 'get':
+                        response = requests.get(url, headers=headers, verify=self.VERIFY_CERT)
+                    elif method == 'post':
+                        response = requests.post(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
+                    elif method == 'put':
+                        response = requests.put(url, json=json_data, headers=headers, verify=self.VERIFY_CERT)
+                    elif method == 'delete':
+                        response = requests.delete(url, headers=headers, verify=self.VERIFY_CERT)
+                    else:
+                        logging.error("No request method given.  Returning nothing.")
+                        return
+                    status_code = response.status_code
+                    if status_code == 429:
+                        logging.warning("Too many connections to the FMC.  Waiting 30 seconds and trying again.")
+                        time.sleep(30)
+                json_response = json.loads(response.text)
+                if status_code > 301 or 'error' in json_response:
+                    response.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                logging.error("Error in POST operation --> {}".format(str(err)))
+                logging.error("json_response -->\t{}".format(json_response))
+            if response:
+                response.close()
+            return json_response
+
+    # FMC to FTD Interactions
 
     def get_deployable_devices(self):
         """In the get_deployable_devices() method:
