@@ -7,10 +7,6 @@ import datetime
 import requests
 from .helper_functions import *
 
-# Disable annoying HTTPS warnings
-# from requests.packages.urllib3.exceptions import InsecureRequestWarning
-# requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
 DOC = 15
 logging.addLevelName(DOC, 'DOC')
 TSHOOT = 35

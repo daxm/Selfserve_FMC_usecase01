@@ -37,7 +37,7 @@ logging_format = '%(asctime)s - %(levelname)s:%(filename)s:%(lineno)s - %(messag
 logging_dateformat = '%Y/%m/%d-%H:%M:%S'
 # Logging level options are logging.DEBUG, DOC, logging.INFO, TSHOOT, logging.WARNING, logging.ERROR, logging.CRITICAL
 logging_level = logging.INFO
-logging_level = DOC
+# logging_level = DOC
 # logging_level = TSHOOT
 logging_filename = 'output.log'
 logging.basicConfig(format=logging_format, datefmt=logging_dateformat, filename=logging_filename, level=logging_level)
@@ -126,8 +126,6 @@ via a Pull request from the github repository: https://github.com/daxm/Selfserve
         """
         logging.log(DOC, self.__authorship__.__doc__)
 
-    # API Method Calls
-
     def send_to_api(self, method='', url='', json_data={}):
             """In the send_to_api() method:
     This method is used to send GET/POST/PUT/DELETE requests to the FMC.  First we check the validity of our token,
@@ -167,8 +165,6 @@ via a Pull request from the github repository: https://github.com/daxm/Selfserve
             if response:
                 response.close()
             return json_response
-
-    # FMC to FTD Interactions
 
     def get_deployable_devices(self):
         """In the get_deployable_devices() method:
@@ -220,8 +216,6 @@ through that list and send a request to the FMC to push changes to that device.
         logging.info("Deploying changes to devices.")
         response = self.send_to_api(method='post', url=url, json_data=json_data)
         return response['deviceList']
-
-    # FMC Object Manipulations
 
     def cleanup_expired_dev_entries(self, **kwargs):
         """In the cleanup_expired_dev_entries() method:

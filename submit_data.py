@@ -9,13 +9,6 @@ from fmcapi import *
 import time
 import random
 
-__author__ = 'Dax Mickelson <dmickels@cisco.com'
-__credits__ = ['Ryan Malloy <rymalloy@cisco.com>', 'Neil Patel <neipatel@cisco.com>']
-__maintainer__ = 'Dax Mickelson'
-__email__ = 'dmickels@cisco.com'
-__repository__ = 'https://github.com/daxm/Selfserve_FMC_usecase01'
-__status__ = 'Development'
-
 #  Created or Provided by User
 autodeploy = False
 dev_port = random.randint(1, 65535)
