@@ -23,8 +23,10 @@ logging.basicConfig(format=logging_format, datefmt=logging_dateformat, filename=
 
 
 #  Created or Provided by User
-autodeploy = True
+autodeploy = False
 dev_port = random.randint(1, 65535)
+protocol_list = ['UDP', 'TCP']
+dev_protocol = random.choice(protocol_list)
 dev_host_ip = '{}.{}.{}.{}'.format(random.randint(1, 223),
                                    random.randint(0, 255), random.randint(0, 255), random.randint(1, 254))
 dev_names = ['John', 'Paul', 'George', 'Ringo']
@@ -48,47 +50,6 @@ now_timestamp = int(time.time())
 name = 'Dev-{}-{}'.format(dev_name, now_timestamp)
 # name = f'Dev-{dev_name}-{now_timestamp}'  # If/when I get python3.6
 
-protocol_port = [
-    {
-        'name': name,
-        'port': dev_port,
-        'protocol': 'TCP',
-        'type': 'ProtocolPortObject',
-    }
-]
-
-host_ip = [
-    {
-        'name': name,
-        'value': dev_host_ip,
-        'type': 'Host'
-    }
-]
-
-acp_rule = [
-    {
-        'name': name,
-        'acpName': acp_name,
-        'action': 'ALLOW',
-        'enabled': 'true',
-        'logBegin': 'true',
-        'logEnd': 'true',
-        'ipsPolicy': ips_policy_name,
-        'sourceZones': [
-            {'name': src_zone_name},
-        ],
-        'destinationZones': [
-            {'name': dst_zone_name},
-        ],
-        'destinationNetworks': [
-            {'name': name},
-        ],
-        'destinationPorts': [
-            {'name': name},
-        ],
-    },
-]
-
 # ########################################### Main Program ####################################################
 
 
@@ -100,49 +61,48 @@ def cleanup_expired_dev_entries(**kwargs):
     :return:
     """
     logging.debug("In the cleanup_expired_dev_entries() method.")
-
     logging.info("Checking for expired Developer Objects.")
-    url_search = "/policy/accesspolicies" + "?name=" + kwargs['acp_name']
-    response = kwargs['fmc'].send_to_api(method='get', url=url_search)
-    acp_id = None
-    if response.get('items', '') is '':
-        logging.error("\tAccess Control Policy not found. Exiting.")
-        exit(1)
-    else:
-        acp_id = response['items'][0]['id']
-    # Now that we have the ACP ID.  Get all its rules and parse them to look at their names.
-    url_search = "/policy/accesspolicies/" + acp_id + "/accessrules"
-    response = kwargs['fmc'].send_to_api(method='get', url=url_search)
-    if response.get('items', '') is '':
+
+    # Get all rules for this ACP.
+
+    all_acp_rules = ACPRule(fmc=fmc1, acp_name=acp_name)
+    all_rules = all_acp_rules.get()
+    if all_rules.get('items', '') is '':
         logging.warning("\tNo rules found for Access Control Policy: {}.".format(kwargs['acp_name']))
     else:
-        for item in response['items']:
+        for item in all_rules['items']:
             if 'Dev-' in item['name']:
                 namesplit = item['name'].split('-')
                 if int(namesplit[2]) < kwargs['threshold_time']:
                     logging.info("\tDeleting {} rule from {}.".format(item['name'], kwargs['acp_name']))
-                    url = url_search + "/" + item['id']
-                    kwargs['fmc'].send_to_api(method='delete', url=url)
+                    tmp_rule = None
+                    tmp_rule = ACPRule(fmc=fmc1, acp_name=acp_name)
+                    tmp_rule.get(name=item['name'])
+                    tmp_rule.delete()
     # Now Delete any expired Host objects.
-    url_search = "/object/hosts"
-    response = kwargs['fmc'].send_to_api(method='get', url=url_search)
-    for item in response['items']:
+    all_ips = IPAddresses(fmc=fmc1)
+    all_hosts = all_ips.get()
+    for item in all_hosts['items']:
         if 'Dev-' in item['name']:
             namesplit = item['name'].split('-')
             if int(namesplit[2]) < kwargs['threshold_time']:
                 logging.info("\tDeleting {} host object.".format(item['name']))
-                url = url_search + "/" + item['id']
-                kwargs['fmc'].send_to_api(method='delete', url=url)
+                tmp_rule = None
+                tmp_rule = IPHost(fmc=fmc1)
+                tmp_rule.get(name=item['name'])
+                tmp_rule.delete()
     # Finally Delete any expired Port objects.
-    url_search = "/object/protocolportobjects"
-    response = kwargs['fmc'].send_to_api(method='get', url=url_search)
+    all_ports = ProtocolPort(fmc=fmc1)
+    response = all_ports.get()
     for item in response['items']:
         if 'Dev-' in item['name']:
             namesplit = item['name'].split('-')
             if int(namesplit[2]) < kwargs['threshold_time']:
                 logging.info("\tDeleting {} port object.".format(item['name']))
-                url = url_search + "/" + item['id']
-                kwargs['fmc'].send_to_api(method='delete', url=url)
+                tmp_rule = None
+                tmp_rule = ProtocolPort(fmc=fmc1)
+                tmp_rule.get(name=item['name'])
+                tmp_rule.delete()
 
 
 with FMC(host=serverIP, username=username, password=password, autodeploy=autodeploy) as fmc1:
@@ -152,11 +112,16 @@ with FMC(host=serverIP, username=username, password=password, autodeploy=autodep
     cleanup_expired_dev_entries(threshold_time=expired_timestamp, acp_name=acp_name, fmc=fmc1)
 
     # Create Port and Host IP first.
-    fmc1.create_host_objects(host_ip)
-    fmc1.create_protocol_port_objects(protocol_port)
-    # Occasionally the FMC is still "sync'ing" the newly added items and this can cause the use of them in
-    #  the createacprule() command to fail.  Let's wait a bit before continuing.
-    time.sleep(5)
+    pport = ProtocolPort(fmc=fmc1, name=name, port=dev_port, protocol=dev_protocol)
+    pport.post()
+    host_ip = IPHost(fmc=fmc1, name=name, value=dev_host_ip)
+    host_ip.post()
 
     # Create ACP Rule
-    fmc1.create_acp_rules(acp_rule)
+    acp_rule = ACPRule(fmc=fmc1, name=name, acp_name=acp_name, action='ALLOW', enabled=True, logBegin=True, logEnd=True)
+    acp_rule.intrusion_policy(action='set', name='Security Over Connectivity')
+    acp_rule.source_zone(action='add', name=src_zone_name)
+    acp_rule.destination_zone(action='add', name=dst_zone_name)
+    acp_rule.destination_network(action='add', name=name)
+    acp_rule.destination_port(action='add', name=name)
+    acp_rule.post()
